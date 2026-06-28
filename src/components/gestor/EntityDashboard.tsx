@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { Entidad, Transaccion } from '@/lib/gestor-types'
 import { calcKPIs, calcIVA, txDelMes } from '@/lib/gestor-calc'
 import {
@@ -189,9 +189,15 @@ export default function EntityDashboard({ entidad, transactions, periodo, dark, 
 
       {/* Transaction list */}
       <div className="gf-card">
-        {esEmpresa ? (
+        {monthsTx.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--gf-text3)' }}>
+            <div style={{ fontSize: 13, marginBottom: 8 }}>Sin movimientos en {getMesLabel(periodo)}</div>
+            <div style={{ fontSize: 11 }}>Cambia el período o agrega una nueva transacción.</div>
+          </div>
+        )}
+        {esEmpresa && monthsTx.length > 0 && (
           <>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.5px', color: 'var(--gf-text3)', textTransform: 'uppercase', marginBottom: 8 }}>Ingresos</div>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.5px', color: 'var(--gf-text3)', textTransform: 'uppercase', marginBottom: 8 }}>Ingresos · {getMesLabel(periodo)}</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 300, overflowY: 'auto', marginBottom: 10 }}>
               {ingTx.length === 0
                 ? <Empty>Sin ingresos.</Empty>
@@ -201,10 +207,11 @@ export default function EntityDashboard({ entidad, transactions, periodo, dark, 
               }
             </div>
             <div style={{ height: .5, background: 'var(--gf-border)', margin: '10px 0' }} />
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.5px', color: 'var(--gf-text3)', textTransform: 'uppercase', marginBottom: 8, marginTop: 10 }}>Gastos</div>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.5px', color: 'var(--gf-text3)', textTransform: 'uppercase', marginBottom: 8, marginTop: 10 }}>Gastos · {getMesLabel(periodo)}</div>
           </>
-        ) : (
-          <SectionTitle>Transacciones</SectionTitle>
+        )}
+        {!esEmpresa && monthsTx.length > 0 && (
+          <SectionTitle>Transacciones · {getMesLabel(periodo)}</SectionTitle>
         )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
           {gasTx.length === 0 && (!esEmpresa ? ingTx.length === 0 : true)
@@ -231,9 +238,10 @@ function TxItem({ t, isEmpresa, onToggle, onDelete, onEdit }: {
   onDelete: () => void
   onEdit: () => void
 }) {
+  const [confirming, setConfirming] = useState(false)
   const isIng = t.tipo === 'INGRESO'
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '9px 10px', borderRadius: 8, background: 'var(--gf-surface2)', gap: 8 }}>
+    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '9px 10px', borderRadius: 8, background: confirming ? 'var(--gf-red-bg)' : 'var(--gf-surface2)', gap: 8, transition: 'background .15s' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9, flex: 1, minWidth: 0 }}>
         <div style={{
           width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -245,12 +253,15 @@ function TxItem({ t, isEmpresa, onToggle, onDelete, onEdit }: {
         </div>
         <div>
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--gf-text)' }}>{t.desc}</div>
-          <div style={{ fontSize: 11, color: 'var(--gf-text3)', marginTop: 3, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
-            <DocBadge tipoDoc={t.tipoDoc} nroDoc={t.nroDoc} />
-            {!isIng && <PagoBadge metodoPago={t.metodoPago} />}
-            {!isIng && <span>· {t.cat}</span>}
-            <span>· {t.fecha}</span>
-          </div>
+          {confirming
+            ? <div style={{ fontSize: 11, color: 'var(--gf-red)', marginTop: 3, fontWeight: 600 }}>¿Eliminar esta transacción?</div>
+            : <div style={{ fontSize: 11, color: 'var(--gf-text3)', marginTop: 3, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+                <DocBadge tipoDoc={t.tipoDoc} nroDoc={t.nroDoc} />
+                {!isIng && <PagoBadge metodoPago={t.metodoPago} />}
+                {!isIng && <span>· {t.cat}</span>}
+                <span>· {t.fecha}</span>
+              </div>
+          }
         </div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
@@ -258,17 +269,30 @@ function TxItem({ t, isEmpresa, onToggle, onDelete, onEdit }: {
           {isIng ? '+' : '-'}{fmt(t.monto)}
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
-          {isEmpresa && isIng && onToggle && (
-            <button onClick={onToggle} style={{ border: '.5px solid var(--gf-border-s)', background: 'transparent', borderRadius: 5, padding: '3px 8px', fontSize: 11, cursor: 'pointer', color: 'var(--gf-text2)', fontWeight: 500 }}>
-              {t.pagado ? '✅ Pagado' : '🕐 Pendiente'}
-            </button>
+          {confirming ? (
+            <>
+              <button onClick={() => { onDelete(); setConfirming(false) }} style={{ border: 'none', background: 'var(--gf-red)', borderRadius: 5, padding: '3px 10px', fontSize: 11, cursor: 'pointer', color: '#fff', fontWeight: 600 }}>
+                Eliminar
+              </button>
+              <button onClick={() => setConfirming(false)} style={{ border: '.5px solid var(--gf-border-s)', background: 'transparent', borderRadius: 5, padding: '3px 10px', fontSize: 11, cursor: 'pointer', color: 'var(--gf-text2)', fontWeight: 500 }}>
+                Cancelar
+              </button>
+            </>
+          ) : (
+            <>
+              {isEmpresa && isIng && onToggle && (
+                <button onClick={onToggle} style={{ border: '.5px solid var(--gf-border-s)', background: 'transparent', borderRadius: 5, padding: '3px 8px', fontSize: 11, cursor: 'pointer', color: 'var(--gf-text2)', fontWeight: 500 }}>
+                  {t.pagado ? '✅ Pagado' : '🕐 Pendiente'}
+                </button>
+              )}
+              <button onClick={onEdit} title="Editar" style={{ border: '.5px solid var(--gf-border-s)', background: 'transparent', borderRadius: 5, padding: '3px 8px', fontSize: 11, cursor: 'pointer', color: 'var(--gf-accent)', fontWeight: 500 }}>
+                ✎ Editar
+              </button>
+              <button onClick={() => setConfirming(true)} title="Eliminar" style={{ border: '.5px solid var(--gf-border-s)', background: 'transparent', borderRadius: 5, padding: '3px 8px', fontSize: 11, cursor: 'pointer', color: 'var(--gf-red)', fontWeight: 500 }}>
+                ✕
+              </button>
+            </>
           )}
-          <button onClick={onEdit} title="Editar" style={{ border: '.5px solid var(--gf-border-s)', background: 'transparent', borderRadius: 5, padding: '3px 8px', fontSize: 11, cursor: 'pointer', color: 'var(--gf-accent)', fontWeight: 500 }}>
-            ✎
-          </button>
-          <button onClick={onDelete} title="Eliminar" style={{ border: '.5px solid var(--gf-border-s)', background: 'transparent', borderRadius: 5, padding: '3px 8px', fontSize: 11, cursor: 'pointer', color: 'var(--gf-red)', fontWeight: 500 }}>
-            ✕
-          </button>
         </div>
       </div>
     </div>

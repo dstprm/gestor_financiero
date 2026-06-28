@@ -11,6 +11,7 @@ interface Props {
   catsEmpresa: string[]
   catsPersonal: string[]
   editTx?: Transaccion | null
+  defaultEntidadId?: string
   onAdd: (tx: Omit<Transaccion, 'id'>) => Promise<Transaccion>
   onUpdate: (id: string, entidadId: string, patch: Partial<Transaccion>) => Promise<void>
   onAfterSave: (entidadId: string) => void
@@ -21,11 +22,11 @@ const today = () => new Date().toISOString().split('T')[0]
 
 export default function AgregarTx({
   entidades, metodosPago, catsEmpresa, catsPersonal,
-  editTx, onAdd, onUpdate, onAfterSave, onCancelEdit,
+  editTx, defaultEntidadId, onAdd, onUpdate, onAfterSave, onCancelEdit,
 }: Props) {
   const isEditing = !!editTx
 
-  const [entidadId, setEntidadId] = useState(editTx?.entidadId ?? entidades[0]?.id ?? '')
+  const [entidadId, setEntidadId] = useState(editTx?.entidadId ?? defaultEntidadId ?? entidades[0]?.id ?? '')
   const [tipo, setTipo]           = useState<'INGRESO' | 'GASTO'>(editTx?.tipo ?? 'INGRESO')
   const [desc, setDesc]           = useState(editTx?.desc ?? '')
   const [cat, setCat]             = useState(editTx?.cat ?? '')

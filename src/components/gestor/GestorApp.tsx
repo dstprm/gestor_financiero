@@ -25,6 +25,7 @@ export default function GestorApp() {
   const [periodo, setPeriodo]         = useState<string>(() => getAvailableMonths()[0])
   const [config, setConfig]           = useState<Config>(DEFAULT_CONFIG)
   const [editingTx, setEditingTx]     = useState<Transaccion | null>(null)
+  const [addFromEntity, setAddFromEntity] = useState<string>('')
   const [loading, setLoading]         = useState(true)
   const [seeding, setSeeding]         = useState(false)
   const [dark, setDark]               = useState(false)
@@ -130,6 +131,7 @@ export default function GestorApp() {
   // Edit flow: open agregar tab pre-filled
   const startEdit = (tx: Transaccion) => {
     setEditingTx(tx)
+    setAddFromEntity('')
     setActiveTab('__agregar__')
   }
 
@@ -229,13 +231,15 @@ export default function GestorApp() {
           </div>
           <h1 style={{ fontSize: 16, fontWeight: 700, color: 'var(--gf-text)' }}>Gestor Financiero</h1>
         </div>
-        <select
-          value={periodo}
-          onChange={e => setPeriodo(e.target.value)}
-          style={{ height: 32, borderRadius: 8, border: '.5px solid var(--gf-border-s)', background: 'var(--gf-surface2)', color: 'var(--gf-text)', padding: '0 8px', fontSize: 13, cursor: 'pointer' }}
-        >
-          {months.map(m => <option key={m} value={m}>{getMesLabel(m)}</option>)}
-        </select>
+        {activeTab !== '__resumen__' && activeTab !== '__agregar__' && activeTab !== '__config__' && (
+          <select
+            value={periodo}
+            onChange={e => setPeriodo(e.target.value)}
+            style={{ height: 32, borderRadius: 8, border: '.5px solid var(--gf-border-s)', background: 'var(--gf-surface2)', color: 'var(--gf-text)', padding: '0 8px', fontSize: 13, cursor: 'pointer' }}
+          >
+            {months.map(m => <option key={m} value={m}>{getMesLabel(m)}</option>)}
+          </select>
+        )}
       </header>
 
       {/* Tab bar */}
@@ -246,10 +250,15 @@ export default function GestorApp() {
             {e.tipo === 'PERSONAL' ? '👤' : '🏢'} {e.nombre}
           </TabBtn>
         ))}
-        <TabBtn active={activeTab === '__agregar__'} onClick={() => { setEditingTx(null); setActiveTab('__agregar__') }} accent>
+        <TabBtn active={activeTab === '__agregar__'} onClick={() => {
+          const isEntityTab = !!entidades.find(e => e.id === activeTab)
+          if (isEntityTab) setAddFromEntity(activeTab)
+          setEditingTx(null)
+          setActiveTab('__agregar__')
+        }} accent>
           {editingTx ? '✎ Editar' : '＋ Agregar'}
         </TabBtn>
-        <TabBtn active={activeTab === '__config__'} onClick={() => setActiveTab('__config__')}>⚙️</TabBtn>
+        <TabBtn active={activeTab === '__config__'} onClick={() => setActiveTab('__config__')}>⚙ Config</TabBtn>
       </nav>
 
       {/* Content */}
@@ -264,6 +273,7 @@ export default function GestorApp() {
             catsEmpresa={config.catsEmpresa}
             catsPersonal={config.catsPersonal}
             editTx={editingTx}
+            defaultEntidadId={addFromEntity || undefined}
             onAdd={addTransaction}
             onUpdate={updateTransaction}
             onAfterSave={handleAfterSave}
