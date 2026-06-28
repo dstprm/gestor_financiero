@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id            String          @id @default(cuid())
+  clerkId       String          @unique
+  email         String          @unique
+  name          String?
+  avatarUrl     String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  organizations OrgMembership[]
+  ownedOrgs     Organization[]
+}
+
+model Organization {
+  id               String          @id @default(cuid())
+  name             String
+  slug             String          @unique
+  ownerId          String
+  owner            User            @relation(fields: [ownerId], references: [id])
+  paddleCustomerId String?         @unique
+  settings         Json?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  members          OrgMembership[]
+  subscription     Subscription?
+  invites          Invite[]
+}
+
+model OrgMembership {
+  id             String       @id @default(cuid())
+  userId         String
+  organizationId String
+  role           MemberRole   @default(VIEWER)
+  joinedAt       DateTime     @default(now())
+  user           User         @relation(fields: [userId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([userId, organizationId])
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+model Invite {
+  id              String       @id @default(cuid())
+  email           String
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role            String       @default("member")
+  token           String       @unique @default(cuid())
+  invitedByUserId String
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  createdAt       DateTime     @default(now())
+}
+
+model Subscription {
+  id                  String             @id @default(cuid())
+  organizationId      String             @unique
+  organization        Organization       @relation(fields: [organizationId], references: [id])
+  paddleSubId         String?            @unique
+  paddleTransactionId String?
+  status              SubscriptionStatus @default(TRIALING)
+  seatCount           Int                @default(1)
+  pricePerSeat        Int                @default(100) // in USD cents
+  trialStartedAt      DateTime           @default(now())
+  trialEndsAt         DateTime?
+  currentPeriodStart  DateTime?
+  currentPeriodEnd    DateTime?
+  cancelledAt         DateTime?
+  trialReminderSentAt DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+}
+
+model WebhookEvent {
+  id          String   @id @default(cuid())
+  eventId     String   @unique
+  source      String
+  eventType   String
+  processedAt DateTime @default(now())
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  PAUSED
+}

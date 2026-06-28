@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+build/
+
+# Git internals
+.git/
+
+# Prisma generated client
+prisma/generated/
+
+# Lock files (not useful for understanding code)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+bun.lockb
+
+# Environment files (contain secrets)
+.env
+.env.*
+.env*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Coverage / test output
+coverage/
+.nyc_output/
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Vercel / Clerk build artifacts
+.vercel/
+.clerk/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Large static assets
+public/fonts/
+public/images/
+
+# Migrations (SQL noise, schema.prisma is enough)
+prisma/migrations/

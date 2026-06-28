@@ -1,0 +1,184 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id            String         @id @default(cuid())
+  clerkId       String         @unique
+  email         String         @unique
+  name          String?
+  avatarUrl     String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  organizations OrgMembership[]
+  ownedOrgs     Organization[]
+}
+
+model Organization {
+  id                String         @id @default(cuid())
+  name              String
+  slug              String         @unique
+  ownerId           String
+  owner             User           @relation(fields: [ownerId], references: [id])
+  paddleCustomerId  String?        @unique
+  settings          Json?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  members           OrgMembership[]
+  employees         Employee[]
+  scenarios         Scenario[]
+  subscription      Subscription?
+  invites           Invite[]
+  shareLinks        ShareLink[]
+}
+
+model Scenario {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  description    String       @default("")
+  employees      Json
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model ShareLink {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  token          String       @unique @default(cuid())
+  label          String?
+  enabled        Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  expiresAt      DateTime?
+}
+
+model Invite {
+  id              String       @id @default(cuid())
+  email           String
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role            String       @default("member")
+  token           String       @unique @default(cuid())
+  invitedByUserId String
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  createdAt       DateTime     @default(now())
+}
+
+model OrgMembership {
+  id             String       @id @default(cuid())
+  userId         String
+  organizationId String
+  role           MemberRole   @default(VIEWER)
+  joinedAt       DateTime     @default(now())
+  user           User         @relation(fields: [userId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([userId, organizationId])
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+model Employee {
+  id                   String                  @id @default(cuid())
+  organizationId       String
+  organization         Organization            @relation(fields: [organizationId], references: [id])
+  name                 String
+  title                String?
+  department           String?
+  email                String?
+  managerId            String?
+  manager              Employee?               @relation("ReportsTo", fields: [managerId], references: [id])
+  reports              Employee[]              @relation("ReportsTo")
+  status               EmployeeStatus          @default(ACTIVE)
+  positionX            Float?
+  positionY            Float?
+  metadata             Json?
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  secondaryManagers    SecondaryRelationship[] @relation("SecondaryReports")
+  secondarySupervisees SecondaryRelationship[] @relation("SecondarySupervises")
+}
+
+model SecondaryRelationship {
+  id           String   @id @default(cuid())
+  employeeId   String
+  employee     Employee @relation("SecondaryReports", fields: [employeeId], references: [id], onDelete: Cascade)
+  supervisorId String
+  supervisor   Employee @relation("SecondarySupervises", fields: [supervisorId], references: [id], onDelete: Cascade)
+  label        String?
+  orgId        String
+  createdAt    DateTime @default(now())
+
+  @@unique([employeeId, supervisorId])
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+  CONTRACTOR
+  OPEN_ROLE
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  organizationId       String             @unique
+  organization         Organization       @relation(fields: [organizationId], references: [id])
+  paddleSubId          String?            @unique
+  paddleTransactionId  String?
+  status               SubscriptionStatus @default(TRIALING)
+  seatCount            Int                @default(1)
+  pricePerSeat         Int                @default(100) // in USD
+  trialStartedAt       DateTime           @default(now())
+  trialEndsAt          DateTime?
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelledAt          DateTime?
+  trialReminderSentAt  DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+}
+
+model WebhookEvent {
+  id          String   @id @default(cuid())
+  eventId     String   @unique
+  source      String
+  eventType   String
+  processedAt DateTime @default(now())
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  PAUSED
+}
+
+model AuditLog {
+  id              String   @id @default(cuid())
+  organizationId  String
+  userId          String
+  userDisplayName String
+  action          String
+  entityType      String
+  entityId        String?
+  entityName      String?
+  changes         Json?
+  createdAt       DateTime @default(now())
+
+  @@index([organizationId, createdAt(sort: Desc)])
+}
