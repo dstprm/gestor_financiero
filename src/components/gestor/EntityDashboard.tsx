@@ -36,7 +36,7 @@ function PagoBadge({ metodoPago }: { metodoPago: string | null }) {
 export default function EntityDashboard({ entidad, transactions, periodo, dark, onTogglePagado, onDelete, onEdit }: Props) {
   const esEmpresa = entidad.tipo === 'EMPRESA'
   const cats = getCats(entidad.tipo)
-  const months = getAvailableMonths()
+  const months = getAvailableMonths(transactions.map(t => t.fecha))
 
   const monthsTx = useMemo(() => txDelMes(transactions, periodo), [transactions, periodo])
   const kpis = useMemo(() => calcKPIs(transactions, periodo), [transactions, periodo])

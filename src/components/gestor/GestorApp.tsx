@@ -29,7 +29,8 @@ export default function GestorApp() {
   const [loading, setLoading]         = useState(true)
   const [seeding, setSeeding]         = useState(false)
   const [dark, setDark]               = useState(false)
-  const months = getAvailableMonths()
+  const allDates = Object.values(txByEntity).flat().map(t => t.fecha)
+  const months = getAvailableMonths(allDates)
 
   // Dark mode observer
   useEffect(() => {

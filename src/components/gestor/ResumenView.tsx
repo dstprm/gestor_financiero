@@ -14,8 +14,9 @@ interface Props {
 
 export default function ResumenView({ entidades, txByEntity, dark }: Props) {
   const [vista, setVista] = useState<'actual' | 'comparativo'>('actual')
-  const [mes, setMes] = useState(() => getAvailableMonths()[0])
-  const months = getAvailableMonths()
+  const allDates = useMemo(() => Object.values(txByEntity).flat().map(t => t.fecha), [txByEntity])
+  const months = getAvailableMonths(allDates)
+  const [mes, setMes] = useState(() => months[0])
   const empEntidades = entidades.filter(e => e.tipo === 'EMPRESA')
 
   const allCats = useMemo(() => [...new Set([...CATS_EMPRESA, ...CATS_PERSONAL])], [])

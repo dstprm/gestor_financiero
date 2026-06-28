@@ -64,13 +64,28 @@ export const PAGO_COLORS: Record<string, string> = {
 
 export const ENTITY_COLORS_DEFAULT = ['#2a78d6', '#1baf7a', '#eda100', '#4a3aa7']
 
-export function getAvailableMonths(): string[] {
+export function getAvailableMonths(dates?: string[]): string[] {
   const now = new Date()
-  const year = now.getFullYear()
-  const currentMonth = now.getMonth() + 1
+  const endYear = now.getFullYear()
+  const endMonth = now.getMonth() + 1
+
+  let startYear = endYear
+  let startMonth = 1
+
+  if (dates && dates.length > 0) {
+    const earliest = dates.reduce((min, d) => (d < min ? d : min))
+    const [ey, em] = earliest.split('-').map(Number)
+    startYear = ey
+    startMonth = em
+  }
+
   const months: string[] = []
-  for (let m = 1; m <= currentMonth; m++) {
-    months.push(`${year}-${String(m).padStart(2, '0')}`)
+  for (let y = startYear; y <= endYear; y++) {
+    const mStart = y === startYear ? startMonth : 1
+    const mEnd = y === endYear ? endMonth : 12
+    for (let m = mStart; m <= mEnd; m++) {
+      months.push(`${y}-${String(m).padStart(2, '0')}`)
+    }
   }
   return months.reverse()
 }
