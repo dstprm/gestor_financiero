@@ -37,14 +37,112 @@ html, body {
   height: 100%;
   margin: 0;
   padding: 0;
-  background-color: #f8fafc;
-  color: #0f172a;
+  background-color: #f5f5f3;
+  color: #0f0f0e;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 html.dark, html.dark body {
-  background-color: #0f172a;
-  color: #e2e8f0;
+  background-color: #141413;
+  color: #f0efe9;
+}
+
+/* ── Gestor Financiero color tokens ─────────────────────────────────────── */
+:root {
+  --gf-bg: #f5f5f3;
+  --gf-surface: #fff;
+  --gf-surface2: #f0efec;
+  --gf-border: rgba(0,0,0,.09);
+  --gf-border-s: rgba(0,0,0,.15);
+  --gf-shadow: 0 1px 4px rgba(0,0,0,.07),0 0 0 .5px rgba(0,0,0,.06);
+  --gf-text: #0f0f0e;
+  --gf-text2: #52514e;
+  --gf-text3: #898781;
+  --gf-accent: #2a78d6;
+  --gf-accent-bg: #e6f1fb;
+  --gf-accent-t: #185fa5;
+  --gf-green: #1baf7a;
+  --gf-green-bg: #e1f5ee;
+  --gf-green-t: #0f6e56;
+  --gf-red: #e34948;
+  --gf-red-bg: #fcebeb;
+  --gf-red-t: #a32d2d;
+  --gf-amber: #eda100;
+  --gf-amber-bg: #faeeda;
+  --gf-amber-t: #854f0b;
+  --gf-purple: #4a3aa7;
+  --gf-purple-bg: #eeecfa;
+  --gf-purple-t: #2e2480;
+}
+
+html.dark {
+  --gf-bg: #141413;
+  --gf-surface: #1e1e1c;
+  --gf-surface2: #252523;
+  --gf-border: rgba(255,255,255,.09);
+  --gf-border-s: rgba(255,255,255,.15);
+  --gf-shadow: 0 1px 4px rgba(0,0,0,.3),0 0 0 .5px rgba(255,255,255,.05);
+  --gf-text: #f0efe9;
+  --gf-text2: #b0afa8;
+  --gf-text3: #6e6d68;
+  --gf-accent: #3987e5;
+  --gf-accent-bg: #0c2a4a;
+  --gf-accent-t: #85b7eb;
+  --gf-green: #1baf7a;
+  --gf-green-bg: #052a1c;
+  --gf-green-t: #5dcaa5;
+  --gf-red: #e34948;
+  --gf-red-bg: #2a0d0d;
+  --gf-red-t: #f09595;
+  --gf-amber: #eda100;
+  --gf-amber-bg: #2a1d00;
+  --gf-amber-t: #fac775;
+  --gf-purple: #7f77dd;
+  --gf-purple-bg: #15113a;
+  --gf-purple-t: #b8b3f0;
+}
+
+/* ── Gestor utility classes ──────────────────────────────────────────────── */
+.gf-card {
+  background: var(--gf-surface);
+  border-radius: 12px;
+  box-shadow: var(--gf-shadow);
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+.gf-input {
+  height: 42px;
+  border-radius: 8px;
+  border: .5px solid var(--gf-border-s);
+  background: var(--gf-surface2);
+  color: var(--gf-text);
+  padding: 0 12px;
+  font-size: 14px;
+  font-family: inherit;
+  width: 100%;
+  -webkit-appearance: none;
+}
+.gf-input:focus {
+  outline: none;
+  border-color: var(--gf-accent);
+}
+
+.gf-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 4px;
+  font-size: 10px;
+  padding: 2px 6px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+@media print {
+  .no-print { display: none !important; }
+  .gf-card { box-shadow: none !important; border: 1px solid #ddd !important; }
+  body { background: #fff !important; color: #000 !important; }
 }
 
 /* React Flow: ensure nodes always render above edges (prevents visual edge-through-node crossing) */

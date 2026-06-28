@@ -102,3 +102,42 @@ enum SubscriptionStatus {
   CANCELLED
   PAUSED
 }
+
+// ── Gestor Financiero ─────────────────────────────────────────────────────────
+
+model Entidad {
+  id            String        @id @default(cuid())
+  nombre        String
+  tipo          TipoEntidad
+  color         String        @default("#2a78d6")
+  orden         Int           @default(0)
+  createdAt     DateTime      @default(now())
+  transacciones Transaccion[]
+}
+
+model Transaccion {
+  id         String   @id @default(cuid())
+  entidadId  String
+  entidad    Entidad  @relation(fields: [entidadId], references: [id], onDelete: Cascade)
+  tipo       TipoTx
+  desc       String
+  cat        String
+  monto      Int
+  fecha      DateTime
+  tipoDoc    String   @default("sin-doc")
+  nroDoc     String?
+  metodoPago String?
+  pagado     Boolean?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+enum TipoEntidad {
+  PERSONAL
+  EMPRESA
+}
+
+enum TipoTx {
+  INGRESO
+  GASTO
+}
