@@ -141,3 +141,10 @@ enum TipoTx {
   INGRESO
   GASTO
 }
+
+model Configuracion {
+  id        String   @id @default(cuid())
+  clave     String   @unique
+  valor     Json
+  updatedAt DateTime @updatedAt
+}

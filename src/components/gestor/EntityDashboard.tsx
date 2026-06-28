@@ -16,6 +16,7 @@ interface Props {
   dark: boolean
   onTogglePagado: (id: string, entidadId: string) => void
   onDelete: (id: string, entidadId: string) => void
+  onEdit: (tx: Transaccion) => void
 }
 
 function DocBadge({ tipoDoc, nroDoc }: { tipoDoc: string; nroDoc: string | null }) {
@@ -32,7 +33,7 @@ function PagoBadge({ metodoPago }: { metodoPago: string | null }) {
   return <span className="gf-badge" style={{ background: 'var(--gf-surface2)', color: 'var(--gf-text2)', border: '.5px solid var(--gf-border)' }}>💳 {metodoPago}</span>
 }
 
-export default function EntityDashboard({ entidad, transactions, periodo, dark, onTogglePagado, onDelete }: Props) {
+export default function EntityDashboard({ entidad, transactions, periodo, dark, onTogglePagado, onDelete, onEdit }: Props) {
   const esEmpresa = entidad.tipo === 'EMPRESA'
   const cats = getCats(entidad.tipo)
   const months = getAvailableMonths()
@@ -195,7 +196,7 @@ export default function EntityDashboard({ entidad, transactions, periodo, dark, 
               {ingTx.length === 0
                 ? <Empty>Sin ingresos.</Empty>
                 : [...ingTx].reverse().map(t => (
-                    <TxItem key={t.id} t={t} isEmpresa onToggle={() => onTogglePagado(t.id, t.entidadId)} onDelete={() => onDelete(t.id, t.entidadId)} />
+                    <TxItem key={t.id} t={t} isEmpresa onToggle={() => onTogglePagado(t.id, t.entidadId)} onDelete={() => onDelete(t.id, t.entidadId)} onEdit={() => onEdit(t)} />
                   ))
               }
             </div>
@@ -210,10 +211,10 @@ export default function EntityDashboard({ entidad, transactions, periodo, dark, 
             ? <Empty>Sin movimientos.</Empty>
             : <>
                 {[...gasTx].reverse().map(t => (
-                  <TxItem key={t.id} t={t} onDelete={() => onDelete(t.id, t.entidadId)} />
+                  <TxItem key={t.id} t={t} onDelete={() => onDelete(t.id, t.entidadId)} onEdit={() => onEdit(t)} />
                 ))}
                 {!esEmpresa && [...ingTx].reverse().map(t => (
-                  <TxItem key={t.id} t={t} onDelete={() => onDelete(t.id, t.entidadId)} />
+                  <TxItem key={t.id} t={t} onDelete={() => onDelete(t.id, t.entidadId)} onEdit={() => onEdit(t)} />
                 ))}
               </>
           }
@@ -223,11 +224,12 @@ export default function EntityDashboard({ entidad, transactions, periodo, dark, 
   )
 }
 
-function TxItem({ t, isEmpresa, onToggle, onDelete }: {
+function TxItem({ t, isEmpresa, onToggle, onDelete, onEdit }: {
   t: Transaccion
   isEmpresa?: boolean
   onToggle?: () => void
   onDelete: () => void
+  onEdit: () => void
 }) {
   const isIng = t.tipo === 'INGRESO'
   return (
@@ -261,6 +263,9 @@ function TxItem({ t, isEmpresa, onToggle, onDelete }: {
               {t.pagado ? '✅ Pagado' : '🕐 Pendiente'}
             </button>
           )}
+          <button onClick={onEdit} title="Editar" style={{ border: '.5px solid var(--gf-border-s)', background: 'transparent', borderRadius: 5, padding: '3px 8px', fontSize: 11, cursor: 'pointer', color: 'var(--gf-accent)', fontWeight: 500 }}>
+            ✎
+          </button>
           <button onClick={onDelete} title="Eliminar" style={{ border: '.5px solid var(--gf-border-s)', background: 'transparent', borderRadius: 5, padding: '3px 8px', fontSize: 11, cursor: 'pointer', color: 'var(--gf-red)', fontWeight: 500 }}>
             ✕
           </button>

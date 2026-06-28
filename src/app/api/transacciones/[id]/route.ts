@@ -9,9 +9,15 @@ export async function PATCH(
   const tx = await prisma.transaccion.update({
     where: { id },
     data: {
-      ...(body.pagado !== undefined && { pagado: body.pagado }),
-      ...(body.desc !== undefined && { desc: body.desc }),
-      ...(body.monto !== undefined && { monto: Math.round(body.monto) }),
+      ...(body.pagado     !== undefined && { pagado:     body.pagado }),
+      ...(body.desc       !== undefined && { desc:       body.desc }),
+      ...(body.monto      !== undefined && { monto:      Math.round(body.monto) }),
+      ...(body.cat        !== undefined && { cat:        body.cat }),
+      ...(body.tipoDoc    !== undefined && { tipoDoc:    body.tipoDoc }),
+      ...(body.nroDoc     !== undefined && { nroDoc:     body.nroDoc }),
+      ...(body.metodoPago !== undefined && { metodoPago: body.metodoPago }),
+      ...(body.tipo       !== undefined && { tipo:       body.tipo }),
+      ...(body.fecha      !== undefined && { fecha:      new Date(body.fecha + 'T12:00:00Z') }),
     },
   })
   return Response.json({ ...tx, fecha: tx.fecha.toISOString().split('T')[0] })

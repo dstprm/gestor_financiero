@@ -3,40 +3,68 @@
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import type { Entidad, Transaccion } from '@/lib/gestor-types'
-import { CATS_EMPRESA, CATS_PERSONAL, METODOS_PAGO, PAGO_COLORS, IVA, fmt, getCats } from '@/lib/gestor-constants'
+import { IVA, fmt } from '@/lib/gestor-constants'
 
 interface Props {
   entidades: Entidad[]
+  metodosPago: string[]
+  catsEmpresa: string[]
+  catsPersonal: string[]
+  editTx?: Transaccion | null
   onAdd: (tx: Omit<Transaccion, 'id'>) => Promise<Transaccion>
+  onUpdate: (id: string, entidadId: string, patch: Partial<Transaccion>) => Promise<void>
+  onAfterSave: (entidadId: string) => void
+  onCancelEdit?: () => void
 }
 
 const today = () => new Date().toISOString().split('T')[0]
 
-export default function AgregarTx({ entidades, onAdd }: Props) {
-  const [entidadId, setEntidadId] = useState(entidades[0]?.id ?? '')
-  const [tipo, setTipo] = useState<'INGRESO' | 'GASTO'>('INGRESO')
-  const [desc, setDesc] = useState('')
-  const [cat, setCat] = useState('')
-  const [tipoDoc, setTipoDoc] = useState('sin-doc')
-  const [nroDoc, setNroDoc] = useState('')
-  const [metodoPago, setMetodoPago] = useState(METODOS_PAGO[0])
-  const [pagado, setPagado] = useState(false)
-  const [monto, setMonto] = useState('')
-  const [fecha, setFecha] = useState(today())
-  const [saving, setSaving] = useState(false)
+export default function AgregarTx({
+  entidades, metodosPago, catsEmpresa, catsPersonal,
+  editTx, onAdd, onUpdate, onAfterSave, onCancelEdit,
+}: Props) {
+  const isEditing = !!editTx
 
-  const entidad = entidades.find(e => e.id === entidadId)
-  const esEmpresa = entidad?.tipo === 'EMPRESA'
-  const cats = getCats(entidad?.tipo ?? 'PERSONAL')
+  const [entidadId, setEntidadId] = useState(editTx?.entidadId ?? entidades[0]?.id ?? '')
+  const [tipo, setTipo]           = useState<'INGRESO' | 'GASTO'>(editTx?.tipo ?? 'INGRESO')
+  const [desc, setDesc]           = useState(editTx?.desc ?? '')
+  const [cat, setCat]             = useState(editTx?.cat ?? '')
+  const [tipoDoc, setTipoDoc]     = useState(editTx?.tipoDoc ?? 'sin-doc')
+  const [nroDoc, setNroDoc]       = useState(editTx?.nroDoc ?? '')
+  const [metodoPago, setMetodoPago] = useState(editTx?.metodoPago ?? metodosPago[0] ?? '')
+  const [pagado, setPagado]       = useState(editTx?.pagado ?? false)
+  const [monto, setMonto]         = useState(editTx ? String(editTx.monto) : '')
+  const [fecha, setFecha]         = useState(editTx?.fecha ?? today())
+  const [saving, setSaving]       = useState(false)
 
-  // Reset cat when entity/tipo changes
+  const entidad    = entidades.find(e => e.id === entidadId)
+  const esEmpresa  = entidad?.tipo === 'EMPRESA'
+  const cats       = esEmpresa ? catsEmpresa : catsPersonal
+
+  // Re-sync form when editTx changes
   useEffect(() => {
-    setCat(tipo === 'GASTO' ? (cats[0] ?? '') : 'Ingreso')
+    if (editTx) {
+      setEntidadId(editTx.entidadId)
+      setTipo(editTx.tipo)
+      setDesc(editTx.desc)
+      setCat(editTx.cat)
+      setTipoDoc(editTx.tipoDoc)
+      setNroDoc(editTx.nroDoc ?? '')
+      setMetodoPago(editTx.metodoPago ?? metodosPago[0] ?? '')
+      setPagado(editTx.pagado ?? false)
+      setMonto(String(editTx.monto))
+      setFecha(editTx.fecha)
+    }
+  }, [editTx])
+
+  // Reset cat when entity/tipo changes (only when not editing)
+  useEffect(() => {
+    if (!editTx) setCat(tipo === 'GASTO' ? (cats[0] ?? '') : 'Ingreso')
   }, [entidadId, tipo])
 
   const montoNum = parseFloat(monto) || 0
   const showIvaPreview = tipoDoc === 'factura' && montoNum > 0
-  const neto = montoNum / (1 + IVA)
+  const neto   = montoNum / (1 + IVA)
   const ivaAmt = montoNum - neto
 
   async function handleSubmit() {
@@ -46,25 +74,31 @@ export default function AgregarTx({ entidades, onAdd }: Props) {
     }
     setSaving(true)
     try {
-      await onAdd({
+      const payload = {
         entidadId,
         tipo,
-        desc: desc.trim(),
-        cat: tipo === 'GASTO' ? cat : 'Ingreso',
-        monto: montoNum,
+        desc:       desc.trim(),
+        cat:        tipo === 'GASTO' ? cat : 'Ingreso',
+        monto:      montoNum,
         fecha,
         tipoDoc,
-        nroDoc: nroDoc.trim() || null,
+        nroDoc:     nroDoc.trim() || null,
         metodoPago: tipo === 'GASTO' ? metodoPago : null,
-        pagado: tipo === 'INGRESO' && esEmpresa ? pagado : null,
-      })
-      toast.success('¡Transacción guardada!')
-      setDesc('')
-      setMonto('')
-      setNroDoc('')
-      setPagado(false)
-      setFecha(today())
-      setTipoDoc('sin-doc')
+        pagado:     tipo === 'INGRESO' && esEmpresa ? pagado : null,
+      }
+
+      if (isEditing && editTx) {
+        await onUpdate(editTx.id, editTx.entidadId, payload)
+        toast.success('Transacción actualizada')
+      } else {
+        await onAdd(payload)
+        toast.success('¡Transacción guardada!')
+        // Reset form for next entry
+        setDesc(''); setMonto(''); setNroDoc(''); setPagado(false)
+        setFecha(today()); setTipoDoc('sin-doc')
+      }
+
+      onAfterSave(entidadId)
     } finally {
       setSaving(false)
     }
@@ -73,12 +107,19 @@ export default function AgregarTx({ entidades, onAdd }: Props) {
   return (
     <div style={{ maxWidth: 560 }}>
       <div className="gf-card">
-        <SectionLabel>Nueva transacción</SectionLabel>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <SectionLabel>{isEditing ? 'Editar transacción' : 'Nueva transacción'}</SectionLabel>
+          {isEditing && onCancelEdit && (
+            <button onClick={onCancelEdit} style={{ fontSize: 12, color: 'var(--gf-text3)', background: 'none', border: 'none', cursor: 'pointer' }}>
+              Cancelar
+            </button>
+          )}
+        </div>
 
         <FieldSection>Entidad y tipo</FieldSection>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <Field label="Entidad">
-            <select className="gf-input" value={entidadId} onChange={e => setEntidadId(e.target.value)}>
+            <select className="gf-input" value={entidadId} onChange={e => setEntidadId(e.target.value)} disabled={isEditing}>
               {entidades.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
             </select>
           </Field>
@@ -119,14 +160,14 @@ export default function AgregarTx({ entidades, onAdd }: Props) {
 
         {tipoDoc === 'factura' && tipo === 'GASTO' && (
           <div style={{ background: 'var(--gf-purple-bg)', borderRadius: 8, padding: 10, marginBottom: 10, fontSize: 12, color: 'var(--gf-purple-t)' }}>
-            📋 <strong>Factura:</strong> El IVA (19%) se calculará automáticamente sobre el monto ingresado (precio con IVA incluido).
+            📋 <strong>Factura:</strong> El IVA (19%) se calculará automáticamente sobre el monto ingresado.
           </div>
         )}
 
         {tipo === 'GASTO' && (
           <Field label="Método de pago">
             <select className="gf-input" value={metodoPago} onChange={e => setMetodoPago(e.target.value)}>
-              {METODOS_PAGO.map(m => <option key={m} value={m}>{m}</option>)}
+              {metodosPago.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           </Field>
         )}
@@ -155,21 +196,8 @@ export default function AgregarTx({ entidades, onAdd }: Props) {
         )}
 
         <button onClick={handleSubmit} disabled={saving} style={{ background: 'var(--gf-accent)', color: '#fff', border: 'none', borderRadius: 8, padding: '11px 20px', fontSize: 14, fontWeight: 600, cursor: 'pointer', width: '100%', marginTop: 4, opacity: saving ? .7 : 1 }}>
-          {saving ? 'Guardando...' : 'Guardar transacción'}
+          {saving ? 'Guardando...' : isEditing ? 'Guardar cambios' : 'Guardar transacción'}
         </button>
-      </div>
-
-      {/* Payment methods reference */}
-      <div className="gf-card">
-        <SectionLabel>Métodos de pago disponibles</SectionLabel>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-          {METODOS_PAGO.map(m => (
-            <div key={m} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 10px', background: 'var(--gf-surface2)', borderRadius: 8, fontSize: 12, fontWeight: 500, color: 'var(--gf-text)' }}>
-              <span style={{ width: 9, height: 9, borderRadius: '50%', background: PAGO_COLORS[m] ?? '#888', flexShrink: 0 }} />
-              {m}
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   )
@@ -183,11 +211,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   )
 }
-
 function FieldSection({ children }: { children: React.ReactNode }) {
   return <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--gf-text3)', margin: '14px 0 8px' }}>{children}</div>
 }
-
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--gf-text3)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '.4px' }}>{children}</div>
+  return <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--gf-text3)', textTransform: 'uppercase', letterSpacing: '.4px' }}>{children}</div>
 }

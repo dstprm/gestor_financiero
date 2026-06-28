@@ -1,25 +1,36 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import type { Entidad, Transaccion } from '@/lib/gestor-types'
 import { getAvailableMonths, getMesLabel } from '@/lib/gestor-constants'
 import EntityDashboard from './EntityDashboard'
 import ResumenView from './ResumenView'
 import AgregarTx from './AgregarTx'
+import ConfigView from './ConfigView'
+
+interface Config {
+  metodosPago:  string[]
+  catsEmpresa:  string[]
+  catsPersonal: string[]
+}
+
+const DEFAULT_CONFIG: Config = { metodosPago: [], catsEmpresa: [], catsPersonal: [] }
 
 export default function GestorApp() {
-  const [entidades, setEntidades] = useState<Entidad[]>([])
-  const [txByEntity, setTxByEntity] = useState<Record<string, Transaccion[]>>({})
-  const [loadedTabs, setLoadedTabs] = useState<Set<string>>(new Set())
-  const [activeTab, setActiveTab] = useState<string>('__resumen__')
-  const [periodo, setPeriodo] = useState<string>(() => getAvailableMonths()[0])
-  const [loading, setLoading] = useState(true)
-  const [seeding, setSeeding] = useState(false)
-  const [dark, setDark] = useState(false)
+  const [entidades, setEntidades]     = useState<Entidad[]>([])
+  const [txByEntity, setTxByEntity]   = useState<Record<string, Transaccion[]>>({})
+  const [loadedTabs, setLoadedTabs]   = useState<Set<string>>(new Set())
+  const [activeTab, setActiveTab]     = useState<string>('__resumen__')
+  const [periodo, setPeriodo]         = useState<string>(() => getAvailableMonths()[0])
+  const [config, setConfig]           = useState<Config>(DEFAULT_CONFIG)
+  const [editingTx, setEditingTx]     = useState<Transaccion | null>(null)
+  const [loading, setLoading]         = useState(true)
+  const [seeding, setSeeding]         = useState(false)
+  const [dark, setDark]               = useState(false)
   const months = getAvailableMonths()
 
-  // Track dark mode
+  // Dark mode observer
   useEffect(() => {
     const check = () => setDark(document.documentElement.classList.contains('dark'))
     check()
@@ -28,15 +39,16 @@ export default function GestorApp() {
     return () => observer.disconnect()
   }, [])
 
-  // Load entities on mount
+  // Bootstrap: load entities + config in parallel
   useEffect(() => {
-    fetch('/api/entidades')
-      .then(r => r.json())
-      .then((data: Entidad[]) => {
-        setEntidades(data)
-        if (data.length > 0) setActiveTab(data[0].id)
-      })
-      .finally(() => setLoading(false))
+    Promise.all([
+      fetch('/api/entidades').then(r => r.json()),
+      fetch('/api/configuracion').then(r => r.json()),
+    ]).then(([ents, cfg]) => {
+      setEntidades(ents)
+      setConfig(cfg)
+      // Default tab stays __resumen__
+    }).finally(() => setLoading(false))
   }, [])
 
   const loadEntityTx = useCallback(async (entidadId: string) => {
@@ -60,12 +72,15 @@ export default function GestorApp() {
     setLoadedTabs(prev => new Set(prev).add('__all__'))
   }, [loadedTabs])
 
-  // Load transactions when tab changes
   useEffect(() => {
     if (!activeTab) return
     if (activeTab === '__resumen__') loadAllTx()
-    else if (activeTab !== '__agregar__') loadEntityTx(activeTab)
+    else if (activeTab !== '__agregar__' && activeTab !== '__config__') loadEntityTx(activeTab)
+    // Clear editingTx when navigating away from agregar
+    if (activeTab !== '__agregar__') setEditingTx(null)
   }, [activeTab])
+
+  // ── Transaction handlers ──────────────────────────────────────────────────
 
   const addTransaction = async (tx: Omit<Transaccion, 'id'>): Promise<Transaccion> => {
     const r = await fetch('/api/transacciones', {
@@ -78,24 +93,28 @@ export default function GestorApp() {
       ...prev,
       [tx.entidadId]: [...(prev[tx.entidadId] ?? []), newTx],
     }))
-    // Invalidate the all-entities cache so resumen refreshes
     setLoadedTabs(prev => { const s = new Set(prev); s.delete('__all__'); return s })
     return newTx
   }
 
-  const togglePagado = async (id: string, entidadId: string) => {
-    const tx = txByEntity[entidadId]?.find(t => t.id === id)
-    if (!tx) return
+  const updateTransaction = async (id: string, entidadId: string, patch: Partial<Transaccion>) => {
     const r = await fetch(`/api/transacciones/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pagado: !tx.pagado }),
+      body: JSON.stringify(patch),
     })
     const updated: Transaccion = await r.json()
     setTxByEntity(prev => ({
       ...prev,
       [entidadId]: (prev[entidadId] ?? []).map(t => t.id === id ? updated : t),
     }))
+    setLoadedTabs(prev => { const s = new Set(prev); s.delete('__all__'); return s })
+  }
+
+  const togglePagado = async (id: string, entidadId: string) => {
+    const tx = txByEntity[entidadId]?.find(t => t.id === id)
+    if (!tx) return
+    await updateTransaction(id, entidadId, { pagado: !tx.pagado })
   }
 
   const deleteTransaction = async (id: string, entidadId: string) => {
@@ -104,30 +123,84 @@ export default function GestorApp() {
       ...prev,
       [entidadId]: (prev[entidadId] ?? []).filter(t => t.id !== id),
     }))
+    setLoadedTabs(prev => { const s = new Set(prev); s.delete('__all__'); return s })
     toast.success('Transacción eliminada')
   }
+
+  // Edit flow: open agregar tab pre-filled
+  const startEdit = (tx: Transaccion) => {
+    setEditingTx(tx)
+    setActiveTab('__agregar__')
+  }
+
+  const cancelEdit = () => {
+    setEditingTx(null)
+    setActiveTab('__resumen__')
+  }
+
+  // After save: return to the entity's tab (or resumen if editing)
+  const handleAfterSave = (entidadId: string) => {
+    setEditingTx(null)
+    setActiveTab(entidadId)
+  }
+
+  // ── Entity handlers ───────────────────────────────────────────────────────
+
+  const addEntidad = async (nombre: string, tipo: 'PERSONAL' | 'EMPRESA', color: string) => {
+    const r = await fetch('/api/entidades', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nombre, tipo, color, orden: entidades.length }),
+    })
+    const newE: Entidad = await r.json()
+    setEntidades(prev => [...prev, newE])
+  }
+
+  const deleteEntidad = async (id: string) => {
+    await fetch(`/api/entidades/${id}`, { method: 'DELETE' })
+    setEntidades(prev => prev.filter(e => e.id !== id))
+    setTxByEntity(prev => { const n = { ...prev }; delete n[id]; return n })
+    setLoadedTabs(prev => { const s = new Set(prev); s.delete(id); s.delete('__all__'); return s })
+    if (activeTab === id) setActiveTab('__resumen__')
+  }
+
+  // ── Config handler ────────────────────────────────────────────────────────
+
+  const updateConfig = async (clave: string, valor: string[]) => {
+    await fetch('/api/configuracion', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clave, valor }),
+    })
+    setConfig(prev => ({
+      ...prev,
+      metodosPago:  clave === 'metodos_pago'  ? valor : prev.metodosPago,
+      catsEmpresa:  clave === 'cats_empresa'  ? valor : prev.catsEmpresa,
+      catsPersonal: clave === 'cats_personal' ? valor : prev.catsPersonal,
+    }))
+  }
+
+  // ── Seed ─────────────────────────────────────────────────────────────────
 
   const handleSeed = async () => {
     setSeeding(true)
     try {
       await fetch('/api/seed', { method: 'POST' })
-      const r = await fetch('/api/entidades')
-      const data: Entidad[] = await r.json()
-      setEntidades(data)
-      setTxByEntity({})
-      setLoadedTabs(new Set())
-      if (data.length > 0) setActiveTab(data[0].id)
+      const [ents, cfg] = await Promise.all([
+        fetch('/api/entidades').then(r => r.json()),
+        fetch('/api/configuracion').then(r => r.json()),
+      ])
+      setEntidades(ents); setConfig(cfg)
+      setTxByEntity({}); setLoadedTabs(new Set())
     } finally {
       setSeeding(false)
     }
   }
 
+  // ── Render ────────────────────────────────────────────────────────────────
+
   if (loading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--gf-text3)', fontSize: 14 }}>
-        Cargando...
-      </div>
-    )
+    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--gf-text3)', fontSize: 14 }}>Cargando...</div>
   }
 
   if (entidades.length === 0) {
@@ -142,6 +215,7 @@ export default function GestorApp() {
   }
 
   const activeEntidad = entidades.find(e => e.id === activeTab)
+  const showEntityDash = !!activeEntidad && activeTab !== '__agregar__' && activeTab !== '__resumen__' && activeTab !== '__config__'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: 'var(--gf-bg)' }}>
@@ -160,25 +234,22 @@ export default function GestorApp() {
           onChange={e => setPeriodo(e.target.value)}
           style={{ height: 32, borderRadius: 8, border: '.5px solid var(--gf-border-s)', background: 'var(--gf-surface2)', color: 'var(--gf-text)', padding: '0 8px', fontSize: 13, cursor: 'pointer' }}
         >
-          {months.map(m => (
-            <option key={m} value={m}>{getMesLabel(m)}</option>
-          ))}
+          {months.map(m => <option key={m} value={m}>{getMesLabel(m)}</option>)}
         </select>
       </header>
 
       {/* Tab bar */}
       <nav className="no-print" style={{ background: 'var(--gf-surface)', borderBottom: '.5px solid var(--gf-border)', display: 'flex', overflowX: 'auto', padding: '0 12px', gap: 2, scrollbarWidth: 'none' }}>
+        <TabBtn active={activeTab === '__resumen__'} onClick={() => setActiveTab('__resumen__')}>📊 Resumen</TabBtn>
         {entidades.map(e => (
-          <TabButton key={e.id} active={activeTab === e.id} onClick={() => setActiveTab(e.id)}>
+          <TabBtn key={e.id} active={activeTab === e.id} onClick={() => setActiveTab(e.id)}>
             {e.tipo === 'PERSONAL' ? '👤' : '🏢'} {e.nombre}
-          </TabButton>
+          </TabBtn>
         ))}
-        <TabButton active={activeTab === '__resumen__'} onClick={() => setActiveTab('__resumen__')}>
-          📊 Resumen
-        </TabButton>
-        <TabButton active={activeTab === '__agregar__'} onClick={() => setActiveTab('__agregar__')} accent>
-          ＋ Agregar
-        </TabButton>
+        <TabBtn active={activeTab === '__agregar__'} onClick={() => { setEditingTx(null); setActiveTab('__agregar__') }} accent>
+          {editingTx ? '✎ Editar' : '＋ Agregar'}
+        </TabBtn>
+        <TabBtn active={activeTab === '__config__'} onClick={() => setActiveTab('__config__')}>⚙️</TabBtn>
       </nav>
 
       {/* Content */}
@@ -187,9 +258,28 @@ export default function GestorApp() {
           <ResumenView entidades={entidades} txByEntity={txByEntity} dark={dark} />
         )}
         {activeTab === '__agregar__' && (
-          <AgregarTx entidades={entidades} onAdd={addTransaction} />
+          <AgregarTx
+            entidades={entidades}
+            metodosPago={config.metodosPago}
+            catsEmpresa={config.catsEmpresa}
+            catsPersonal={config.catsPersonal}
+            editTx={editingTx}
+            onAdd={addTransaction}
+            onUpdate={updateTransaction}
+            onAfterSave={handleAfterSave}
+            onCancelEdit={cancelEdit}
+          />
         )}
-        {activeEntidad && (
+        {activeTab === '__config__' && (
+          <ConfigView
+            entidades={entidades}
+            config={config}
+            onAddEntidad={addEntidad}
+            onDeleteEntidad={deleteEntidad}
+            onUpdateConfig={updateConfig}
+          />
+        )}
+        {showEntityDash && (
           <EntityDashboard
             entidad={activeEntidad}
             transactions={txByEntity[activeTab] ?? []}
@@ -197,6 +287,7 @@ export default function GestorApp() {
             dark={dark}
             onTogglePagado={togglePagado}
             onDelete={deleteTransaction}
+            onEdit={startEdit}
           />
         )}
       </main>
@@ -204,24 +295,9 @@ export default function GestorApp() {
   )
 }
 
-function TabButton({ children, active, onClick, accent }: { children: React.ReactNode; active: boolean; onClick: () => void; accent?: boolean }) {
+function TabBtn({ children, active, onClick, accent }: { children: React.ReactNode; active: boolean; onClick: () => void; accent?: boolean }) {
   return (
-    <button
-      onClick={onClick}
-      style={{
-        padding: '10px 11px',
-        fontSize: 13,
-        cursor: 'pointer',
-        border: 'none',
-        background: 'transparent',
-        color: active ? 'var(--gf-accent)' : accent ? 'var(--gf-accent)' : 'var(--gf-text3)',
-        whiteSpace: 'nowrap',
-        borderBottom: active ? '2px solid var(--gf-accent)' : '2px solid transparent',
-        fontWeight: 500,
-        marginLeft: accent ? 'auto' : undefined,
-        transition: 'color .15s, border-color .15s',
-      }}
-    >
+    <button onClick={onClick} style={{ padding: '10px 11px', fontSize: 13, cursor: 'pointer', border: 'none', background: 'transparent', color: active ? 'var(--gf-accent)' : accent ? 'var(--gf-accent)' : 'var(--gf-text3)', whiteSpace: 'nowrap', borderBottom: active ? '2px solid var(--gf-accent)' : '2px solid transparent', fontWeight: 500, marginLeft: accent ? 'auto' : undefined, transition: 'color .15s, border-color .15s' }}>
       {children}
     </button>
   )
