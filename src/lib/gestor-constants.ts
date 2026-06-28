@@ -66,17 +66,22 @@ export const ENTITY_COLORS_DEFAULT = ['#2a78d6', '#1baf7a', '#eda100', '#4a3aa7'
 
 export function getAvailableMonths(dates?: string[]): string[] {
   const now = new Date()
-  const endYear = now.getFullYear()
-  const endMonth = now.getMonth() + 1
-
+  let endYear = now.getFullYear()
+  let endMonth = now.getMonth() + 1
   let startYear = endYear
   let startMonth = 1
 
   if (dates && dates.length > 0) {
     const earliest = dates.reduce((min, d) => (d < min ? d : min))
-    const [ey, em] = earliest.split('-').map(Number)
-    startYear = ey
-    startMonth = em
+    const latest = dates.reduce((max, d) => (d > max ? d : max))
+    const [sy, sm] = earliest.split('-').map(Number)
+    const [ly, lm] = latest.split('-').map(Number)
+    startYear = sy
+    startMonth = sm
+    if (ly > endYear || (ly === endYear && lm > endMonth)) {
+      endYear = ly
+      endMonth = lm
+    }
   }
 
   const months: string[] = []
